@@ -55,6 +55,49 @@ class PendulumEnv(gym.Env):
         theta, thetadot = self.state
         return np.array([np.cos(theta), np.sin(theta), thetadot])
 
+    def render_state(self, theta, mode='rgb_array', close=False):
+        """ Get a view of a particular internal state (theta) """
+        theta = angle_normalize(theta)
+
+        if close:
+            if self.viewer is not None:
+                self.viewer.close()
+                self.viewer = None
+            return
+
+        if self.viewer is None:
+            from gym.envs.classic_control import rendering
+            self.viewer = rendering.Viewer(500,500)
+            self.viewer.set_bounds(-2.2,2.2,-2.2,2.2)
+            rod = rendering.make_capsule(1, .2)
+            rod.set_color(.8, .3, .3)
+            self.pole_transform = rendering.Transform()
+            rod.add_attr(self.pole_transform)
+            self.viewer.add_geom(rod)
+            axle = rendering.make_circle(.05)
+            axle.set_color(0,0,0)
+            self.viewer.add_geom(axle)
+
+        self.pole_transform.set_rotation(theta + np.pi/2)
+
+        return self.viewer.render(return_rgb_array = mode=='rgb_array')
+
+    def step_from_state(self, state, u):
+        th, thdot = state
+        g = 10.
+        m = 1.
+        l = 1.
+        dt = self.dt
+
+        u = np.clip(u, -self.max_torque, self.max_torque)[0]
+        costs = angle_normalize(th)**2 + .1*thdot**2 + .001*(u**2)
+
+        newthdot = thdot + (-3*g/(2*l) * np.sin(th + np.pi) + 3./(m*l**2)*u) * dt
+        newth = th + newthdot*dt
+        newthdot = np.clip(newthdot, -self.max_speed, self.max_speed) #pylint: disable=E1111
+
+        return np.array([newth, newthdot])
+
     def _render(self, mode='human', close=False):
         if close:
             if self.viewer is not None:
